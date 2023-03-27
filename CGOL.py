@@ -109,7 +109,7 @@ def relativeCoordinates(pos:[int,int], dim:[int,int]):
     )
 
 
-def drawGrid(table:[[bool]], canvas:tk.Canvas):
+def drawGrid(table:[[bool]], canvas:tk.Canvas, cam_pos:[int,int]):
     """
     Draw each cell of 'table' onto the given 'canvas'.
     The dimensions and other caracteristics of the cells are defined as local variables within the function,
@@ -129,8 +129,8 @@ def drawGrid(table:[[bool]], canvas:tk.Canvas):
         for x in range(len(table[0])):
             canvas.create_rectangle(
                 relativeCoordinates(
-                    [x*cell_size + border_width*x + outline_width,
-                     y*cell_size + border_width*y + outline_width],
+                    [x*cell_size + border_width*x + outline_width - cam_pos[0],
+                     y*cell_size + border_width*y + outline_width - cam_pos[1]],
                     [cell_size]*2,
                 ),
                 fill=["black","white"][table[y][x]],
@@ -174,7 +174,7 @@ def init():
     )
     IS_RUNNING = True
 
-    global WINDOW, CANVAS
+    global WINDOW
     WINDOW = tk.Tk()
     WINDOW.geometry(f"{W}x{H}")
     WINDOW.wm_title("CGOL")
@@ -183,25 +183,40 @@ def init():
         globals().update(IS_RUNNING=not IS_RUNNING),
         # print("Running" if IS_RUNNING else "Suspended"),
     ))
+    WINDOW.bind('<Left>', lambda event: (
+        globals().update(CAM_POS=[CAM_POS[0] - 1, CAM_POS[1]])
+    ))
+    WINDOW.bind('<Right>', lambda event: (
+        globals().update(CAM_POS=[CAM_POS[0] + 1, CAM_POS[1]])
+    ))
+    WINDOW.bind('<Up>', lambda event: (
+        globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] - 1])
+    ))
+    WINDOW.bind('<Down>', lambda event: (
+        globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] + 1])
+    ))
+    liftWindow(WINDOW)  # jump above all other windows (pin >> unpin)
 
-    liftWindow(WINDOW)  # jump above all other windows (pin ∧ unpin)
 
-
-
+    global CANVAS
     CANVAS = tk.Canvas(width=256, height=256, bg="#202020", highlightbackground="#202020")  # highlightthickness=0
     CANVAS.pack()
+
+    global CAM_POS
+    # CAM = OnTheFly(x=0, y=0)
+    CAM_POS = [0]*2
 
     # BOARD[4][4] = True
     # BOARD[4][5] = True
     # BOARD[4][6] = True
 
-    # cells_temp = [
-    #     (0,2),
-    #     (1,0),(1,2),
-    #     (2,1),(2,2),
-    # ]
-    # for cell in cells_temp:
-    #     BOARD[cell[0]][cell[1]] = True
+    cells_temp = [
+        (0,2),
+        (1,0),(1,2),
+        (2,1),(2,2),
+    ]
+    for cell in cells_temp:
+        BOARD[cell[0]][cell[1]] = True
 
 
 def tick():
@@ -223,8 +238,7 @@ def tick():
         # ) for line in BOARD]
         # print()
 
-
-        drawGrid(BOARD, CANVAS)
+        drawGrid(BOARD, CANVAS, CAM_POS)
         WINDOW.update()
 
         if not IS_RUNNING: continue
