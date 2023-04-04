@@ -1,6 +1,7 @@
 import tkinter as tk
 from Rules import RULES
 from time import sleep
+import ConsoleUtil as con
 
 
 # unmap(WINDOW, {
@@ -10,10 +11,20 @@ from time import sleep
 # })
 
 
+class Board(list):
+    cell_dim:[int,int] = [8]*2
+    gap:[int,int] = [0]*2
+    def __init__(self, seq=(), **kwargs):
+        super().__init__(seq)
+        self.cell_dim = kwargs.get('cell_dim', Board.cell_dim)
+        self.gap = kwargs.get('gap', Board.gap)
+
+
 
 def grid(W, H, D):
     """
     Generates a grid.
+
     :param W: width
     :param H: height
     :param D: default value
@@ -37,7 +48,7 @@ class OnTheFly:
 
 
 
-#smolBord = OnTheFly(w=8)
+
 
 def clamp(value:int or float, minimum:int or float, maximum:int or float) -> (int or float):
     """
@@ -54,6 +65,8 @@ def clamp(value:int or float, minimum:int or float, maximum:int or float) -> (in
         maximum,
     )
 
+
+
 def strip(array:[], value):
     """
     Strips all occurences of value within array.
@@ -63,6 +76,7 @@ def strip(array:[], value):
     :return: 'value'-less 'array'.
     """
     return [element for element in array if element != value]
+
 
 def cut(table:[[bool]], pos:[int,int], radius:int=1):
     """
@@ -78,6 +92,7 @@ def cut(table:[[bool]], pos:[int,int], radius:int=1):
         out += [line[max(pos[0]-radius,0) : min(pos[0]+radius,len(table[0]))+1]]
     return out
 
+
 def countNeighbours(table:[[bool]], state:bool):
     """
     Adds all rows of 'table' together, then adds their integer form,
@@ -89,6 +104,7 @@ def countNeighbours(table:[[bool]], state:bool):
     :return: Amount of neighbours of the cell, of which the state is given.
     """
     return sum( [int(cell) for cell in sum(table, [])] ) - int(state)
+
 
 
 def relativeCoordinates(pos:[int,int], dim:[int,int]):
@@ -109,39 +125,45 @@ def relativeCoordinates(pos:[int,int], dim:[int,int]):
     )
 
 
-def drawGrid(table:[[bool]], canvas:tk.Canvas, cam_pos:[int,int]):
+
+def drawGrid(table:[[bool]] or Board, canvas:tk.Canvas, cam_pos:[int,int]):
     """
-    Draw each cell of 'table' onto the given 'canvas'.
-    The dimensions and other caracteristics of the cells are defined as local variables within the function,
-    which may be moved into **keyword_arguments.
+    Draw each cell of 'table' onto the given 'canvas' with respect to the 'cam_pos' offset.
+    The dimensions and other caracteristics of the cells are defined within the Board instance,
+    and otherwise (when given a grid instead) make use of the Board class' defaults.
     """
 
+    ### [NOTE] : Using tk's move function would most likely not have been useful,
+    ###          as we would've had to compute which parts of the board still had to be drawn.
     canvas.delete(tk.ALL) # canvases actually keep track of all their objects, even when fully drawn over,
                           # so this line is extremely important as to avoid any slow downs
-    ### [NOTE] : show the others what used to happen before i found that out
-    ###          (as I don't recall its necessity being documented anywhere officially...)
 
-    cell_size:int = 8
-    border_width:int = 1
-    outline_width:int = int(CANVAS.cget('highlightthickness'))
+    cell_dim:[int,int] = Board.cell_dim
+    gap:[int] = Board.gap
+    if type(table) is Board:
+        cell_dim = table.cell_dim
+        gap = table.gap
+
+    #border_width:int = int(canvas.cget('highlightthickness'))
 
     for y in range(len(table)):
         for x in range(len(table[0])):
             canvas.create_rectangle(
                 relativeCoordinates(
-                    [x*cell_size + border_width*x + outline_width - cam_pos[0],
-                     y*cell_size + border_width*y + outline_width - cam_pos[1]],
-                    [cell_size]*2,
+                    [x*(cell_dim[0] + gap[0]) + gap[0] - cam_pos[0],
+                     y*(cell_dim[1] + gap[1]) + gap[1] - cam_pos[1]],
+                    cell_dim,
                 ),
                 fill=["black","white"][table[y][x]],
                 outline="",
             )
 
 
+
 def liftWindow(win):
     """
     Small utility to ensure the given window ('win') appears immediately and receives focus automatically.
-    (since for some reason this is not default behaviour)
+    (since for some reason this is not default behaviour) (it would seem focus stopped working on my machine. How odd.)
 
     :param win: Tk() object.
     """
@@ -149,6 +171,57 @@ def liftWindow(win):
     win.attributes('-topmost', True)
     win.attributes('-topmost', False)
     win.focus_force()
+
+
+
+def grid2terminal(table:[[bool]], characters=('⬜','⬛')):
+    #[print(con.CURSOR_UP, end=con.CLEAR_LINE) for n in range(len(table))]
+
+    ### [NOTE] : this may not work on older versions of IPython, especially IDE integrated consoles.
+    ###          Please prefer standalone terminals, in case you plan to restore this functionality.
+    con.clear()
+    [print(
+        # "  ".join([str(int(item)) for item in line])
+        " ".join(
+            [characters[item] for item in line]
+        )
+    ) for line in table]
+
+
+
+def toggle(event):
+    """
+    Toggles the hovered pixel when <RMB> is held.
+    """
+
+    ### [NOTE] : (kinda janky, still better than constantly toggling the cell,
+    ###          but now *requires* motion to execute, and single clicks have no effect.)
+
+    def pix2cell(pix:int):
+        return pix//(BOARD.cell_dim[0]+BOARD.gap[0])
+
+    ### [TODO] : improve this, and this ^^^ which is hardcoded and therefore "*bad*"
+    if not (MB_RIGHT and [pix2cell(event.x),pix2cell(event.y)]!=[pix2cell(PREV_CURSOR_POS[n]) for n in range(len(PREV_CURSOR_POS))]): return
+
+    pos = [( (event.x,event.y)[n] + CAM_POS[n]) // (BOARD.cell_dim[n] + BOARD.gap[n] )
+           for n in range(2)]
+    BOARD[pos[1]][pos[0]] ^= 1
+
+
+def drag(event):
+    """
+    Relies on a global (could not find a better looking yet simple alternative) to store the previous position of the cursor,
+    and compare it to the current position.
+    This delta is then applied as is to the position of the camera.
+    """
+    global CAM_POS, PREV_CURSOR_POS
+    cursor_pos = [event.x,event.y]
+
+    if MB_LEFT:
+        CAM_POS = [CAM_POS[n] - (cursor_pos[n] - PREV_CURSOR_POS[n])
+                   for n in range(len(CAM_POS))]
+    
+    PREV_CURSOR_POS = cursor_pos
 
 
 
@@ -160,63 +233,88 @@ def init():
     Setups everything.
     """
 
-    global WH, W, H
+    global WH, W, H, BOARD, IS_RUNNING, WINDOW, CANVAS, CAM_POS, ITERATIONS, MB_LEFT, MB_RIGHT, PREV_CURSOR_POS
     WH = W, H = 255, 255
 
     board_width = input("Board width [cells] : ")  or W//8
     board_height = input("Board height [cells] : ") or H//8
 
-    global BOARD, IS_RUNNING
-    BOARD = grid(
-        int(board_width),
-        int(board_height),
-        False
-    )
-    IS_RUNNING = True
 
-    global WINDOW
+    ### [TODO] : ConsoleUtil DECORATIONS, dynamic separator length, horizontal line centering
+    print('#---------------------------------------------------------#')
+    print(f"Press {'<SPACE>'} to pause|unpause, \n"
+          f"{'<LEFT-CLICK>'}{'[DRAG]'} to pan the camera, \n"
+          f"and {'<RIGHT-CLICK>'}{'[DRAG]'} to place|remove cells.")
+    print('#---------------------------------------------------------#')
+
+    BOARD = Board(
+        grid(
+            int(board_width),
+            int(board_height),
+            False,
+        ),
+        gap=[1]*2
+    )
+
+    IS_RUNNING = False
+    print(f"Simulate State : {'Running' if IS_RUNNING else 'Suspended'}")
+
     WINDOW = tk.Tk()
     WINDOW.geometry(f"{W}x{H}")
     WINDOW.wm_title("CGOL")
     WINDOW.wm_resizable(False, False)
     WINDOW.bind('<KeyRelease-space>', lambda event: (
         globals().update(IS_RUNNING=not IS_RUNNING),
-        # print("Running" if IS_RUNNING else "Suspended"),
-    ))
-    WINDOW.bind('<Left>', lambda event: (
-        globals().update(CAM_POS=[CAM_POS[0] - 1, CAM_POS[1]])
-    ))
-    WINDOW.bind('<Right>', lambda event: (
-        globals().update(CAM_POS=[CAM_POS[0] + 1, CAM_POS[1]])
-    ))
-    WINDOW.bind('<Up>', lambda event: (
-        globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] - 1])
-    ))
-    WINDOW.bind('<Down>', lambda event: (
-        globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] + 1])
+        print("Running" if IS_RUNNING else "Paused"),
     ))
     liftWindow(WINDOW)  # jump above all other windows (pin >> unpin)
 
 
-    global CANVAS
-    CANVAS = tk.Canvas(width=256, height=256, bg="#202020", highlightbackground="#202020")  # highlightthickness=0
+    MB_LEFT = False
+    WINDOW.bind('<ButtonPress-1>', lambda event: globals().update(MB_LEFT=True))
+    WINDOW.bind('<ButtonRelease-1>', lambda event: globals().update(MB_LEFT=False))
+    MB_RIGHT = False
+    WINDOW.bind('<ButtonPress-3>', lambda event: globals().update(MB_RIGHT=True))
+    WINDOW.bind('<ButtonRelease-3>', lambda event: globals().update(MB_RIGHT=False))
+    ### [NOTE] : ugliest garbage ever
+    # WINDOW.bind('<Left>', lambda event:(
+    #     globals().update(CAM_POS=[CAM_POS[0] - 1, CAM_POS[1]])
+    # ))
+    # WINDOW.bind('<Right>', lambda event:(
+    #     globals().update(CAM_POS=[CAM_POS[0] + 1, CAM_POS[1]])
+    # ))
+    # WINDOW.bind('<Up>', lambda event:(
+    #     globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] - 1])
+    # ))
+    # WINDOW.bind('<Down>', lambda event:(
+    #     globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] + 1])
+    # ))
+
+
+    PREV_CURSOR_POS = [0]*2
+    CANVAS = tk.Canvas(width=256, height=256, bg="#202020", highlightbackground="#202020")
+    CANVAS.bind('<Motion>', lambda event: (
+        toggle(event),
+        drag(event),
+    ))
     CANVAS.pack()
 
-    global CAM_POS
     # CAM = OnTheFly(x=0, y=0)
     CAM_POS = [0]*2
+
+    ITERATIONS = 0
 
     # BOARD[4][4] = True
     # BOARD[4][5] = True
     # BOARD[4][6] = True
 
-    cells_temp = [
-        (0,2),
-        (1,0),(1,2),
-        (2,1),(2,2),
-    ]
-    for cell in cells_temp:
-        BOARD[cell[0]][cell[1]] = True
+    # cells_temp = [
+    #     (0,2),
+    #     (1,0),(1,2),
+    #     (2,1),(2,2),
+    # ]
+    # for cell in cells_temp:
+    #     BOARD[cell[0]][cell[1]] = True
 
 
 def tick():
@@ -226,17 +324,16 @@ def tick():
     refreshing the window, and computing the next iteration of the board.
     """
 
-    global BOARD
+    global BOARD, ITERATIONS
 
     while True:
-        # # temporary way of printing to the terminal
-        # [print(
-        #     # "  ".join([str(int(item)) for item in line])
-        #     " ".join(
-        #         [('⬜','⬛')[item] for item in line]
-        #     )
-        # ) for line in BOARD]
-        # print()
+
+        # temporary way of printing to the terminal
+        #grid2terminal(BOARD)
+
+        ITERATIONS += 1
+        # console lags like heeeeell
+        #print('\r', ITERATIONS, end='', sep='')
 
         drawGrid(BOARD, CANVAS, CAM_POS)
         WINDOW.update()
@@ -280,10 +377,13 @@ def tick():
                     else BOARD[y][x]
                 )
 
-        BOARD = next_board # and finally apply all modifications
-                           # (this is not returned, as this is the `tick()` function).
-                           # (had it been its own function, then it probably would've been returned)
+        # we do not assign to BOARD directly as it is not a simple list, it actually contains specific data ;
+        # therefore we assign to each of its rows.
+        BOARD[:] = next_board[:] # and finally apply all modifications
+                                 # (this is not returned, as this is the `tick()` function).
+                                 # (had it been its own function, then it probably would've been returned)
         # sleep(0.25)
+        #while not IS_RUNNING: pass
 
 
 
