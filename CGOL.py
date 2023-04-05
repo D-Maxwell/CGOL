@@ -16,8 +16,10 @@ class Board(list):
     gap:[int,int] = [0]*2
     def __init__(self, seq=(), **kwargs):
         super().__init__(seq)
-        self.cell_dim = kwargs.get('cell_dim', Board.cell_dim)
-        self.gap = kwargs.get('gap', Board.gap)
+        for key,val in kwargs.items():
+            exec(f"self.{key} = {val}")
+        # self.cell_dim = kwargs.get('cell_dim', Board.cell_dim)
+        # self.gap = kwargs.get('gap', Board.gap)
 
 
 
@@ -147,7 +149,9 @@ def drawGrid(table:[[bool]] or Board, canvas:tk.Canvas, cam_pos:[int,int]):
     #border_width:int = int(canvas.cget('highlightthickness'))
 
     for y in range(len(table)):
+        if not (0 < y*(cell_dim[1] + gap[1]) + gap[1] - cam_pos[1] < H): continue
         for x in range(len(table[0])):
+            if not (0 < x * (cell_dim[0] + gap[0]) + gap[0] - cam_pos[0] < W): continue
             canvas.create_rectangle(
                 relativeCoordinates(
                     [x*(cell_dim[0] + gap[0]) + gap[0] - cam_pos[0],
@@ -206,7 +210,7 @@ def toggle(event):
     pos = [( (event.x,event.y)[n] + CAM_POS[n]) // (BOARD.cell_dim[n] + BOARD.gap[n] )
            for n in range(2)]
     BOARD[pos[1]][pos[0]] ^= 1
-
+    
 
 def drag(event):
     """
@@ -234,7 +238,7 @@ def init():
     """
 
     global WH, W, H, BOARD, IS_RUNNING, WINDOW, CANVAS, CAM_POS, ITERATIONS, MB_LEFT, MB_RIGHT, PREV_CURSOR_POS
-    WH = W, H = 255, 255
+    WH = W, H = 256, 256
 
     board_width = input("Board width [cells] : ")  or W//8
     board_height = input("Board height [cells] : ") or H//8
@@ -262,7 +266,8 @@ def init():
     WINDOW = tk.Tk()
     WINDOW.geometry(f"{W}x{H}")
     WINDOW.wm_title("CGOL")
-    WINDOW.wm_resizable(False, False)
+    #WINDOW.wm_resizable(False, False)
+    WINDOW.wm_attributes('-toolwindow', True)
     WINDOW.bind('<KeyRelease-space>', lambda event: (
         globals().update(IS_RUNNING=not IS_RUNNING),
         print("Running" if IS_RUNNING else "Paused"),
@@ -270,51 +275,34 @@ def init():
     liftWindow(WINDOW)  # jump above all other windows (pin >> unpin)
 
 
+    ### [NOTE] : a fully functional InputManager would've been a lot of work,
+    ###          and may not have been worth the two holdable mouse inputs
     MB_LEFT = False
     WINDOW.bind('<ButtonPress-1>', lambda event: globals().update(MB_LEFT=True))
     WINDOW.bind('<ButtonRelease-1>', lambda event: globals().update(MB_LEFT=False))
     MB_RIGHT = False
     WINDOW.bind('<ButtonPress-3>', lambda event: globals().update(MB_RIGHT=True))
     WINDOW.bind('<ButtonRelease-3>', lambda event: globals().update(MB_RIGHT=False))
-    ### [NOTE] : ugliest garbage ever
-    # WINDOW.bind('<Left>', lambda event:(
-    #     globals().update(CAM_POS=[CAM_POS[0] - 1, CAM_POS[1]])
-    # ))
-    # WINDOW.bind('<Right>', lambda event:(
-    #     globals().update(CAM_POS=[CAM_POS[0] + 1, CAM_POS[1]])
-    # ))
-    # WINDOW.bind('<Up>', lambda event:(
-    #     globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] - 1])
-    # ))
-    # WINDOW.bind('<Down>', lambda event:(
-    #     globals().update(CAM_POS=[CAM_POS[0], CAM_POS[1] + 1])
-    # ))
 
 
     PREV_CURSOR_POS = [0]*2
-    CANVAS = tk.Canvas(width=256, height=256, bg="#202020", highlightbackground="#202020")
+    CANVAS = tk.Canvas(width=W, height=H, bg="#202020", highlightbackground="#202020")
     CANVAS.bind('<Motion>', lambda event: (
         toggle(event),
         drag(event),
     ))
+    CANVAS.bind('<Configure>', lambda event: (
+        globals().update(W=event.width,H=event.height),
+        CANVAS.configure(width=W),
+        CANVAS.configure(height=H),
+    ))
     CANVAS.pack()
 
+    ### [TODO ?] : Camera zoom
     # CAM = OnTheFly(x=0, y=0)
     CAM_POS = [0]*2
 
     ITERATIONS = 0
-
-    # BOARD[4][4] = True
-    # BOARD[4][5] = True
-    # BOARD[4][6] = True
-
-    # cells_temp = [
-    #     (0,2),
-    #     (1,0),(1,2),
-    #     (2,1),(2,2),
-    # ]
-    # for cell in cells_temp:
-    #     BOARD[cell[0]][cell[1]] = True
 
 
 def tick():
@@ -361,6 +349,8 @@ def tick():
                     cut(BOARD,[x,y],1),
                     cellState,
                 )
+                # attempt at optimizing large voids, unsure about its effect
+                if neighbours==0: continue
 
                 # remove None from the list of the values returned by each rule,
                 # only leaving those which would change the state of the current cell
@@ -379,11 +369,13 @@ def tick():
 
         # we do not assign to BOARD directly as it is not a simple list, it actually contains specific data ;
         # therefore we assign to each of its rows.
+        # wont we run into list pointers issues ? we're only copying the first layer
         BOARD[:] = next_board[:] # and finally apply all modifications
                                  # (this is not returned, as this is the `tick()` function).
                                  # (had it been its own function, then it probably would've been returned)
+        
+        ### [TODO ?] : Simulation Speed
         # sleep(0.25)
-        #while not IS_RUNNING: pass
 
 
 
