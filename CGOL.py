@@ -149,9 +149,9 @@ def drawGrid(table:[[bool]] or Board, canvas:tk.Canvas, cam_pos:[int,int]):
     #border_width:int = int(canvas.cget('highlightthickness'))
 
     for y in range(len(table)):
-        if not (0 < y*(cell_dim[1] + gap[1]) + gap[1] - cam_pos[1] < H): continue
+        if not (-cell_dim[1] < y*(cell_dim[1] + gap[1]) + gap[1] - cam_pos[1] < H): continue
         for x in range(len(table[0])):
-            if not (0 < x * (cell_dim[0] + gap[0]) + gap[0] - cam_pos[0] < W): continue
+            if not (-cell_dim[0] < x * (cell_dim[0] + gap[0]) + gap[0] - cam_pos[0] < W): continue
             canvas.create_rectangle(
                 relativeCoordinates(
                     [x*(cell_dim[0] + gap[0]) + gap[0] - cam_pos[0],
