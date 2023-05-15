@@ -68,16 +68,16 @@ def clamp(value:int or float, minimum:int or float, maximum:int or float) -> (in
     )
 
 
-
-def strip(array:[], value):
-    """
-    Strips all occurences of value within array.
-
-    :param array: A list containing 'value' any number of times >= 0.
-    :param value: Any object to be excluded from 'array'.
-    :return: 'value'-less 'array'.
-    """
-    return [element for element in array if element != value]
+# Useless.
+# def strip(array:[], value):
+#     """
+#     Strips all occurences of value within array.
+# 
+#     :param array: A list containing 'value' any number of times >= 0.
+#     :param value: Any object to be excluded from 'array'.
+#     :return: 'value'-less 'array'.
+#     """
+#     return [element for element in array if element != value]
 
 
 def cut(table:[[bool]], pos:[int,int], radius:int=1):
@@ -209,7 +209,8 @@ def toggle(event):
 
     pos = [( (event.x,event.y)[n] + CAM_POS[n]) // (BOARD.cell_dim[n] + BOARD.gap[n] )
            for n in range(2)]
-    BOARD[pos[1]][pos[0]] ^= 1
+    if [0 <= pos[n] < len((BOARD,BOARD[0])[n]) for n in range(len(pos))] == [True]*2:
+        BOARD[pos[1]][pos[0]] ^= 1
     
 
 def drag(event):
@@ -291,10 +292,9 @@ def init():
         toggle(event),
         drag(event),
     ))
-    CANVAS.bind('<Configure>', lambda event: (
+    WINDOW.bind('<Configure>', lambda event: (
         globals().update(W=event.width,H=event.height),
-        CANVAS.configure(width=W),
-        CANVAS.configure(height=H),
+        CANVAS.configure(width=W,height=H),
     ))
     CANVAS.pack()
 
@@ -354,10 +354,9 @@ def tick():
 
                 # remove None from the list of the values returned by each rule,
                 # only leaving those which would change the state of the current cell
-                next_cell = strip(
-                    [rule(c=cellState, n=neighbours) for rule in RULES],
-                    None,
-                )
+                next_cell = [result for rule in RULES if (result := rule(c=cellState, n=neighbours)) is not None]
+                #[(result := rule(c=cellState, n=neighbours)) for rule in RULES if result is not None]
+                # REVERSE IT, τ/2
 
                 # set the value of this cell at the next frame to be the last value of the aforementioned list,
                 # as precedence is determined this way (corresponds to the order of the functions in RULES).
