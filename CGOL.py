@@ -209,7 +209,7 @@ def toggle(event):
 
     pos = [( (event.x,event.y)[n] + CAM_POS[n]) // (BOARD.cell_dim[n] + BOARD.gap[n] )
            for n in range(2)]
-    if [0 <= pos[n] < len((BOARD,BOARD[0])[n]) for n in range(len(pos))] == [True]*2:
+    if [0 <= pos[n] < len((BOARD[0],BOARD)[n]) for n in range(len(pos))] == [True]*2:
         BOARD[pos[1]][pos[0]] ^= 1
     
 
